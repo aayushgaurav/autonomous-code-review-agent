@@ -161,6 +161,17 @@ Swagger documentation:
 | POST | `/api/webhooks/github` | Receive GitHub PR webhook |
 | POST | `/api/reviews/{thread_id}/approve` | Approve or reject proposed changes |
 
+
+### API Security
+
+- GitHub webhook requests are verified using HMAC SHA-256.
+- The webhook secret is configured using `GITHUB_WEBHOOK_SECRET`.
+- The review approval endpoint requires an API key.
+- Pass the API key using the `X-API-Key` request header.
+- The API key is configured using `REVIEW_API_KEY`.
+- Requests with invalid or missing credentials are rejected with HTTP 401.
+
+
 ### Approval Request Example
 
 ```json
@@ -225,19 +236,19 @@ The LangGraph workflow maintains the following state:
 
 The workflow uses MemorySaver for checkpoint persistence and interrupts before applying changes.
 
+
 ## Implementation Notes
 
-- The current refactoring node uses a temporary mock implementation. It is not yet a live LLM-powered refactoring implementation.
+- The current refactoring node uses a temporary mock implementation. Live LLM-powered refactoring is not yet implemented.
 - The linter runs Flake8 and Black in temporary directories using subprocess. This is not a fully isolated security sandbox.
 - MemorySaver provides in-memory checkpointing; checkpoints do not survive application restarts.
-- GitHub webhook signature verification and authentication for the approval endpoint should be added before production deployment.
+- GitHub webhook signature verification is implemented.
+- The approval endpoint uses API-key authentication through the `X-API-Key` header.
 
 ## Future Improvements
 
 - Integrate live LLM-powered code refactoring.
 - Implement stronger sandbox isolation.
-- Add GitHub webhook signature verification.
-- Add authentication and authorization for reviewer decisions.
 - Introduce durable SQLite-based checkpoint persistence.
 
 ## Author
