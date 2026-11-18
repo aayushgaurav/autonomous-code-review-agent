@@ -1,29 +1,47 @@
+
+import os
+import hmac
+import hashlib
+import json
+
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 
 from app.api.main import app
 
-
 client = TestClient(app)
 
 
 def test_github_webhook():
-    mock_graph = patch(
-        "app.graph.workflow.graph.invoke"
-    )
+    secret = "test_secret"
+    os.environ["GITHUB_WEBHOOK_SECRET"] = secret
 
-    with mock_graph as mocked_invoke:
+    payload = {
+        "action": "opened",
+        "pull_request": {
+            "html_url": "https://github.com/aayushgaurav/code-review-agent-demo/pull/1",
+            "number": 1,
+        },
+        "repository": {
+            "full_name": "aayushgaurav/code-review-agent-demo"
+        },
+    }
+
+    body = json.dumps(payload).encode("utf-8")
+
+    signature = "sha256=" + hmac.new(
+        secret.encode("utf-8"),
+        body,
+        hashlib.sha256,
+    ).hexdigest()
+
+    with patch("app.graph.workflow.graph.invoke") as mocked_invoke:
         response = client.post(
             "/api/webhooks/github",
-            json={
-                "action": "opened",
-                "pull_request": {
-                    "html_url": "https://github.com/aayushgaurav/code-review-agent-demo/pull/1",
-                    "number": 1,
-                },
-                "repository": {
-                    "full_name": "aayushgaurav/code-review-agent-demo"
-                },
+            content=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Hub-Signature-256": signature,
             },
         )
 
@@ -35,7 +53,6 @@ def test_github_webhook():
     mocked_invoke.assert_called_once()
 
     print("SUCCESS: GitHub webhook endpoint test passed!")
-
 
 
 def test_approval_endpoint():

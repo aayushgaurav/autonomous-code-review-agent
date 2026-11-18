@@ -1,7 +1,32 @@
-from fastapi import FastAPI
-from fastapi import FastAPI, HTTPException
+
+import os
+import hmac
+import hashlib
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
+
+load_dotenv()
+
+def verify_github_signature(payload: bytes, signature: str) -> bool:
+    """Verify that the webhook request came from GitHub."""
+
+    secret = os.getenv("GITHUB_WEBHOOK_SECRET")
+
+    if not secret or not signature:
+        return False
+
+    expected_signature = "sha256=" + hmac.new(
+        secret.encode("utf-8"),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
+
+    return hmac.compare_digest(expected_signature, signature)
+
+
 
 app = FastAPI(
     title="Autonomous Code Review Agent",
@@ -29,10 +54,30 @@ class GitHubWebhookPayload(BaseModel):
     repository: dict
 
 
-@app.post("/api/webhooks/github")
-def github_webhook(payload: GitHubWebhookPayload):
 
-    # Process only opened or synchronized PRs
+@app.post("/api/webhooks/github")
+async def github_webhook(request: Request):
+
+    # Step 1: Verify GitHub webhook signature
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    body = await request.body()
+
+    if not verify_github_signature(body, signature):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid GitHub webhook signature.",
+        )
+
+    # Step 2: Validate webhook payload
+    try:
+        payload = GitHubWebhookPayload.model_validate_json(body)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid webhook payload.",
+        )
+
+    # Step 3: Process only opened or synchronized PRs
     if payload.action not in ["opened", "synchronize"]:
         return {
             "message": "Event ignored",
