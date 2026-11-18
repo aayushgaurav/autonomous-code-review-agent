@@ -55,8 +55,10 @@ def test_github_webhook():
     print("SUCCESS: GitHub webhook endpoint test passed!")
 
 
+
 def test_approval_endpoint():
     thread_id = "github-test-repo-pr-1"
+    api_key = "test-review-key"
 
     mock_snapshot = type(
         "MockSnapshot",
@@ -67,17 +69,26 @@ def test_approval_endpoint():
         },
     )()
 
-    with patch("app.graph.workflow.graph.get_state", return_value=mock_snapshot):
-        with patch("app.graph.workflow.graph.update_state") as mocked_update:
-            with patch("app.graph.workflow.graph.invoke") as mocked_invoke:
+    with patch("app.api.main.REVIEW_API_KEY", api_key):
+        with patch(
+            "app.graph.workflow.graph.get_state",
+            return_value=mock_snapshot,
+        ):
+            with patch(
+                "app.graph.workflow.graph.update_state"
+            ) as mocked_update:
+                with patch(
+                    "app.graph.workflow.graph.invoke"
+                ) as mocked_invoke:
 
-                response = client.post(
-                    f"/api/reviews/{thread_id}/approve",
-                    json={
-                        "approved": False,
-                        "feedback": "Please fix the formatting.",
-                    },
-                )
+                    response = client.post(
+                        f"/api/reviews/{thread_id}/approve",
+                        json={
+                            "approved": False,
+                            "feedback": "Please fix the formatting.",
+                        },
+                        headers={"X-API-Key": api_key},
+                    )
 
     assert response.status_code == 200
     assert response.json()["approved"] is False
@@ -85,7 +96,8 @@ def test_approval_endpoint():
     mocked_update.assert_called_once()
     mocked_invoke.assert_called_once()
 
-    print("SUCCESS: Approval/rejection endpoint test passed!")
+    print("SUCCESS: Authenticated approval/rejection test passed!")
+
 
 
 
@@ -105,3 +117,22 @@ def test_github_webhook_rejects_invalid_signature():
     assert response.json()["detail"] == "Invalid GitHub webhook signature."
 
     print("SUCCESS: Invalid webhook signature rejected!")
+
+
+def test_approval_endpoint_rejects_invalid_api_key():
+    with patch("app.api.main.REVIEW_API_KEY", "correct-test-key"):
+        response = client.post(
+            "/api/reviews/test-thread/approve",
+            json={
+                "approved": False,
+                "feedback": "Test feedback",
+            },
+            headers={"X-API-Key": "wrong-key"},
+        )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or missing API key."
+
+    print("SUCCESS: Invalid API key rejected!")
+
+ 

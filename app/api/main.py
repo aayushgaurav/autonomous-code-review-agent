@@ -3,6 +3,8 @@ import os
 import hmac
 import hashlib
 
+import secrets
+from fastapi import Header
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
@@ -26,7 +28,14 @@ def verify_github_signature(payload: bytes, signature: str) -> bool:
 
     return hmac.compare_digest(expected_signature, signature)
 
+REVIEW_API_KEY = os.getenv("REVIEW_API_KEY")
 
+
+def verify_review_api_key(api_key: str) -> bool:
+    if not REVIEW_API_KEY or not api_key:
+        return False
+
+    return secrets.compare_digest(api_key, REVIEW_API_KEY)
 
 app = FastAPI(
     title="Autonomous Code Review Agent",
@@ -128,11 +137,19 @@ class ReviewDecision(BaseModel):
     feedback: Optional[str] = None
 
 
+
 @app.post("/api/reviews/{thread_id}/approve")
 def review_decision(
     thread_id: str,
     decision: ReviewDecision,
+    x_api_key: str = Header(default=""),
 ):
+    if not verify_review_api_key(x_api_key):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing API key.",
+        )
+
     from app.graph.workflow import graph
 
     config = {
