@@ -1,9 +1,19 @@
+
+import os
+
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
+
 from app.graph.state import ReviewState
+
+
+load_dotenv()
 
 
 def propose_refactor_node(state: ReviewState) -> dict:
     """
-    Generate refactored code using a temporary mock.
+    Use an LLM to refactor Python code based on lint errors
+    and reviewer feedback while preserving original logic.
     """
 
     code_contents = state.get("code_contents", {})
@@ -12,6 +22,19 @@ def propose_refactor_node(state: ReviewState) -> dict:
 
     if not code_contents:
         raise ValueError("No code available for refactoring.")
+
+    api_key = os.getenv("OPENAI_API_KEY")
+
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is missing.")
+
+    model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    llm = ChatOpenAI(
+        model=model_name,
+        temperature=0,
+        api_key=api_key,
+    )
 
     refactored_code = {}
 
@@ -22,14 +45,48 @@ def propose_refactor_node(state: ReviewState) -> dict:
             "No lint results available."
         )
 
-        if filename == "sample.py":
-            corrected_code = (
-                "def calculate_total(price, quantity):\n"
-                "    total = price * quantity\n"
-                "    return total\n"
+        prompt = f"""
+You are an expert Python code refactoring assistant.
+
+Your task is to improve the following Python code.
+
+FILE NAME:
+{filename}
+
+ORIGINAL CODE:
+{original_code}
+
+LINT ERRORS:
+{errors}
+
+REVIEWER FEEDBACK:
+{reviewer_feedback or "No additional reviewer feedback."}
+
+REQUIREMENTS:
+1. Fix the reported linting and formatting errors.
+2. Follow the reviewer feedback.
+3. Preserve the original functionality and business logic.
+4. Do not remove existing functionality.
+5. Do not introduce unnecessary dependencies.
+6. Return ONLY the complete corrected Python source code.
+7. Do not include Markdown code fences or explanations.
+"""
+
+        response = llm.invoke(prompt)
+
+        corrected_code = response.content
+
+        if not isinstance(corrected_code, str):
+            raise ValueError(
+                f"LLM returned an invalid response for {filename}."
             )
-        else:
-            corrected_code = original_code
+
+        corrected_code = corrected_code.strip()
+
+        if not corrected_code:
+            raise ValueError(
+                f"LLM returned empty code for {filename}."
+            )
 
         refactored_code[filename] = corrected_code
 
@@ -38,7 +95,8 @@ def propose_refactor_node(state: ReviewState) -> dict:
     history.append({
         "node": "propose_refactor_node",
         "status": "completed",
-        "mode": "mock",
+        "mode": "llm",
+        "model": model_name,
         "reviewer_feedback": reviewer_feedback,
         "files_refactored": list(refactored_code.keys()),
     })
