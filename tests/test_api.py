@@ -86,3 +86,22 @@ def test_approval_endpoint():
     mocked_invoke.assert_called_once()
 
     print("SUCCESS: Approval/rejection endpoint test passed!")
+
+
+
+def test_github_webhook_rejects_invalid_signature():
+    os.environ["GITHUB_WEBHOOK_SECRET"] = "test_secret"
+
+    response = client.post(
+        "/api/webhooks/github",
+        content=b'{"action":"opened"}',
+        headers={
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": "sha256=invalid_signature",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid GitHub webhook signature."
+
+    print("SUCCESS: Invalid webhook signature rejected!")
