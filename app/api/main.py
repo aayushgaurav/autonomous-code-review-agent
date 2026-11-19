@@ -101,8 +101,10 @@ async def github_webhook(request: Request):
             detail="Pull request URL is missing.",
         )
 
+    repository_name = payload.repository.get("full_name", "").replace("/", "-")
+
     thread_id = (
-        f"github-{payload.repository.get('full_name')}"
+        f"github-{repository_name}"
         f"-pr-{payload.pull_request.get('number')}"
     )
 
@@ -125,6 +127,7 @@ async def github_webhook(request: Request):
     from app.graph.workflow import graph
 
     graph.invoke(initial_state, config=config)
+
 
     return {
         "message": "Code review started.",

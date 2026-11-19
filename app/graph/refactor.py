@@ -1,4 +1,3 @@
-
 import os
 
 from dotenv import load_dotenv
@@ -8,14 +7,17 @@ from app.graph.state import ReviewState
 
 load_dotenv()
 
-
 def propose_refactor_node(state: ReviewState) -> dict:
-    code_contents = state.get("code_contents", {})
+    original_contents = state.get("code_contents", {})
+    previous_refactored = state.get("refactored_code", {})
     lint_errors = state.get("lint_errors", {})
     reviewer_feedback = state.get("reviewer_feedback")
 
-    if not code_contents:
+    if not original_contents:
         raise ValueError("No code available for refactoring.")
+
+    # Use previously generated code during retries.
+    source_contents = previous_refactored or original_contents
 
     api_key = os.getenv("GROQ_API_KEY")
 
@@ -33,7 +35,8 @@ def propose_refactor_node(state: ReviewState) -> dict:
 
     refactored_code = {}
 
-    for filename, original_code in code_contents.items():
+    for filename, current_code in source_contents.items():
+        original_code = original_contents.get(filename, current_code)
         errors = lint_errors.get(filename, "No lint results available.")
 
         prompt = f"""You are an expert Python code refactoring assistant.
@@ -41,17 +44,20 @@ def propose_refactor_node(state: ReviewState) -> dict:
 FILE NAME:
 {filename}
 
-ORIGINAL CODE:
+ORIGINAL CODE (REFERENCE):
 {original_code}
 
-LINT ERRORS:
+CURRENT CODE TO FIX:
+{current_code}
+
+VALIDATION OR LINT ERRORS:
 {errors}
 
 REVIEWER FEEDBACK:
 {reviewer_feedback or "No additional reviewer feedback."}
 
 REQUIREMENTS:
-1. Fix reported linting and formatting errors.
+1. Fix reported linting, formatting, or validation errors.
 2. Follow reviewer feedback.
 3. Preserve original functionality and business logic.
 4. Do not remove existing functionality.
@@ -71,7 +77,7 @@ REQUIREMENTS:
         corrected_code = corrected_code.strip()
 
         if not corrected_code:
-         raise ValueError(f"LLM returned empty code for {filename}.")
+            raise ValueError(f"LLM returned empty code for {filename}.")
 
         corrected_code += "\n"
 

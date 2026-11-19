@@ -151,3 +151,51 @@ def review_decision_router(state: ReviewState) -> str:
         return "refactor"
 
     return "end"
+
+
+def validate_refactor_node(state: ReviewState) -> dict:
+    """
+    Validate LLM-generated code using Flake8 and Black.
+    """
+
+    refactored_code = state.get("refactored_code", {})
+
+    if not refactored_code:
+        raise ValueError("No refactored code available for validation.")
+
+    validation_errors = {}
+    validation_passed = True
+
+    for filename, code in refactored_code.items():
+        result = run_linter_tool.invoke({
+            "code_string": code
+        })
+
+        validation_errors[filename] = result
+
+        if "STATUS: PASSED" not in result:
+            validation_passed = False
+
+    history = list(state.get("history", []))
+
+    history.append({
+        "node": "validate_refactor_node",
+        "status": "passed" if validation_passed else "failed",
+        "files_checked": list(refactored_code.keys()),
+    })
+
+    return {
+        "lint_errors": validation_errors,
+        "validation_passed": validation_passed,
+        "history": history,
+    }
+
+def validation_decision_router(state: ReviewState) -> str:
+    """
+    Route based on refactored code validation results.
+    """
+
+    if state.get("validation_passed") is True:
+        return "review"
+
+    return "refactor"

@@ -48,7 +48,7 @@ def test_github_webhook():
     assert response.status_code == 200
     assert response.json()["message"] == "Code review started."
     assert response.json()["thread_id"] == (
-        "github-aayushgaurav/code-review-agent-demo-pr-1"
+        "github-aayushgaurav-code-review-agent-demo-pr-1"
     )
     mocked_invoke.assert_called_once()
 
