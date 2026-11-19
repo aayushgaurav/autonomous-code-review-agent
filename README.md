@@ -31,6 +31,7 @@ The system fetches modified files from GitHub pull requests, analyzes Python cod
 - Pytest
 - Docker
 - Docker Compose
+- Groq
 
 ## Project Architecture
 
@@ -89,6 +90,7 @@ code-review-agent/
 ├── tests/
 │   ├── test_api.py
 │   ├── test_linter.py
+│   ├── test_refactor.py
 │   └── test_rejection.py
 │
 ├── .env.example
@@ -131,9 +133,14 @@ pip install -r requirements.txt
 Create a `.env` file in the project root.
 
 ```env
-GITHUB_TOKEN=your_github_token
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL=gpt-4o-mini
+GITHUB_TOKEN=your_github_token_here
+GITHUB_OWNER=your_github_username
+
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=openai/gpt-oss-120b
+
+GITHUB_WEBHOOK_SECRET=your_webhook_secret
+REVIEW_API_KEY=your_review_api_key
 ```
 
 Never commit your `.env` file or expose API keys.
@@ -239,17 +246,21 @@ The workflow uses MemorySaver for checkpoint persistence and interrupts before a
 
 ## Implementation Notes
 
-- The current refactoring node uses a temporary mock implementation. Live LLM-powered refactoring is not yet implemented.
+- The refactoring node uses Groq-powered LLM integration to generate code improvements based on lint errors and reviewer feedback.
+- The refactoring node uses the OpenAI-compatible LangChain interface configured with Groq.
+- The generated code is validated through the review workflow and requires human approval before changes are applied.
 - The linter runs Flake8 and Black in temporary directories using subprocess. This is not a fully isolated security sandbox.
 - MemorySaver provides in-memory checkpointing; checkpoints do not survive application restarts.
-- GitHub webhook signature verification is implemented.
-- The approval endpoint uses API-key authentication through the `X-API-Key` header.
+- GitHub webhook signature verification is implemented using HMAC SHA-256.
+- The approval endpoint uses API-key authentication through the X-API-Key header.
+- Automated tests cover API security, linting errors, refactoring logic, and rejection handling.
 
 ## Future Improvements
 
-- Integrate live LLM-powered code refactoring.
-- Implement stronger sandbox isolation.
+- Implement stronger sandbox isolation for linting and code analysis.
 - Introduce durable SQLite-based checkpoint persistence.
+- Improve refactoring validation and automated code quality checks.
+- Expand automated test coverage.
 
 ## Author
 
