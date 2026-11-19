@@ -71,9 +71,9 @@ REQUIREMENTS:
         corrected_code = corrected_code.strip()
 
         if not corrected_code:
-            raise ValueError(
-                f"LLM returned empty code for {filename}."
-            )
+         raise ValueError(f"LLM returned empty code for {filename}.")
+
+        corrected_code += "\n"
 
         refactored_code[filename] = corrected_code
 

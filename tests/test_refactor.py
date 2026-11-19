@@ -28,7 +28,7 @@ def test_refactor_node_uses_lint_errors_and_reviewer_feedback():
     with patch("app.graph.refactor.ChatOpenAI", return_value=mock_llm):
         result = propose_refactor_node(state)
 
-    assert result["refactored_code"]["sample.py"] == mock_response.content
+    assert result["refactored_code"]["sample.py"] == mock_response.content + "\n"
     assert result["is_approved"] is None
     assert result["history"][-1]["mode"] == "llm"
 

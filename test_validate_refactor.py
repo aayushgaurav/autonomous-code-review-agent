@@ -27,6 +27,8 @@ def test_validate_refactor():
     result = propose_refactor_node(state)
 
     corrected_code = result["refactored_code"]["sample.py"]
+    print("\n========== GENERATED CODE ==========\n")
+    print(repr(corrected_code))
 
     # Run Flake8 and Black again
     lint_result = run_linter_tool.invoke({
